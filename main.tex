@@ -1,0 +1,373 @@
+\documentclass[journal]{IEEEtran}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{dblfloatfix}
+\usepackage{placeins}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{newtxtext,newtxmath}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+
+\newcommand{\MI}{I(\ell;Y)}
+\newcommand{\Htwo}{H_2}
+\newcommand{\TV}{\mathrm{TV}}
+\newcommand{\peff}{p_{\mathrm{eff}}(u)}
+\newcommand{\etaeff}{\eta_{\mathrm{eff}}(u)}
+
+\title{Resource-Controlled Scaling Laws for Noisy Variational Quantum Neural Networks: An Advanced Toy-Model Study}
+
+\author{Hongmin~Jung%
+\thanks{Hongmin Jung is with \emph{Laurel Springs School, Ojai, CA, USA}, \emph{Bucheon}, \emph{South Korea} (e-mail: \emph{[junghongmin13@gmail.com]}).}}
+
+\begin{document}
+
+% Float placement tuning (keeps double-column figures closer to first mention)
+\setcounter{topnumber}{2}
+\setcounter{dbltopnumber}{2}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.8}
+\renewcommand{\dblfloatpagefraction}{0.8}
+
+\maketitle
+
+\begin{abstract}
+I study how much classically usable label information survives to measurement in a noisy variational quantum neural network (VQNN) realized as a parameterized quantum circuit (PQC). Instead of training-dependent scores such as accuracy or loss, I evaluate the quantum front-end through the mutual information $\MI=H(Y)-H(Y\mid \ell)$ between a balanced binary label $\ell\in\{0,1\}$ and the classical measurement output $Y$. This choice isolates architecture and noise: any downstream classifier $\hat{\ell}=g(Y)$ satisfies $I(\ell;\hat{\ell})\le \MI$ by the data processing inequality. For layer-wise depolarization with rate $p$, non-identity Pauli expectations contract by $\eta=1-\tfrac{4p}{3}$, so information-carrying bias compounds approximately as $\eta^{\kappa(n)L}$ across depth $L$ and width $n$. I verify a robust rise--peak--decline of $\MI$ with depth under noise, map an operating ridge $L^{\ast}(p)$ in the $(L,p)$ plane, and fit a compact log-linear scaling law in $(\log n,\log L,\log\eta)$ that predicts the dominant trends across a fixed simulation grid. Finally, I model error-suppression or Zeno-like protection as a control resource $u$ that reduces the effective depolarizing rate via $\peff=p e^{-u}$ (diminishing returns) and show that, under a resource budget, allocating effort to control can outperform naive circuit scaling in higher-noise regimes. The result is a reproducible, application-oriented toy-model guide for hardware-aware VQNN design and resource allocation, intended to support practical hybrid quantum--classical sensing and learning pipelines.
+\end{abstract}
+
+\begin{IEEEkeywords}
+variational quantum neural networks, parameterized quantum circuits, mutual information, depolarizing noise, scaling laws, error mitigation, resource allocation
+\end{IEEEkeywords}
+
+\section{Introduction}
+Hybrid quantum--classical machine learning is typically implemented by a classical optimizer that controls a parameterized quantum circuit (PQC) and reads out classical measurement data \cite{ref15,ref16}. In near-term devices the dominant bottleneck is not expressivity in the abstract, but the coupled effect of noise and finite sampling. A practical engineering question is therefore: \emph{how much label-relevant information can the quantum front-end deliver to the measurement interface before training?} Accuracy and loss conflate circuit design with optimizer choice, classifier class, initialization, and training schedule, and they can vary widely even when the underlying measurement statistics are unchanged. In this work I treat the noisy PQC as an effective information channel from a binary label $\ell$ to the measurement record $Y$, and I quantify the \emph{reachable label information} by the mutual information $\MI$ in bits \cite{ref3}. This perspective provides a training-independent feasibility check: if $\MI\approx 0$, no classical post-processing can recover the label signal because $I(\ell;g(Y))\le \MI$ for every classical map $g$ (data processing inequality). 
+
+My goal is to extract simple, reproducible design rules for noisy VQNN scaling. I fix an encoding, a hardware-efficient ansatz, and a measurement, and I sweep width $n$, depth $L$, and depolarizing rate $p$ over a grid (Table~\ref{tab:grid}). I then (i) demonstrate the characteristic rise--peak--decline of $\MI$ with depth under noise, (ii) summarize an operating ridge $L^{\ast}(p)$ on the $(L,p)$ plane, (iii) fit a compact log-linear scaling law that predicts the dominant behavior across the grid, and (iv) extend the framework by introducing a \emph{control resource} that models error suppression with diminishing returns. This ``advanced toy model'' is designed to be transparent enough for analytic reasoning yet rich enough to guide experimental planning. Related motivations include expressibility and entangling capability of PQCs \cite{ref7} and noise-driven training pathologies such as barren plateaus \cite{ref4,ref5,ref6}.
+
+To prioritize broad relevance and reproducibility, I treat the results as a practical checklist: given an estimated device noise rate and a compute budget, the scaling fits and the control model identify where additional depth or width stops helping and where mitigation effort is better spent. To make the study reproducible, the supplementary package includes the full simulation grid, fitted coefficients, and scripts that regenerate all figures and tables under fixed random seeds.
+
+\section{Related Work and Positioning}
+Hybrid quantum--classical learning commonly couples a classical controller to a parameterized quantum circuit (PQC) through measurement statistics and (optionally) analytic or stochastic gradient estimation \cite{ref15,ref16}. In this landscape, two threads are especially relevant to my focus on \emph{reachable} label information. First, the expressibility and entangling capability of hardware-efficient circuits influence what functions a VQNN could represent in principle \cite{ref7}; however, in realistic devices, trainability can degrade rapidly due to barren plateaus that emerge from circuit structure, cost choices, and noise \cite{ref4,ref5,ref6}. These observations motivate separating ``can the circuit represent a decision rule'' from ``does the device deliver a learnable signal to the classical side.'' Second, information theory offers metrics that are independent of any particular classifier. Mutual information provides a direct measure of label-specific structure in the measured data, and the data-processing inequality formalizes why downstream post-processing cannot increase label information that never reaches the measurement interface \cite{ref3}. In the quantum setting, the Holevo bound limits the classically accessible information that any measurement can extract from an ensemble of quantum states \cite{ref2}, providing a natural ceiling against which a fixed-measurement architecture can be interpreted \cite{ref1}. 
+
+On the modeling side, depolarizing noise is widely used as a baseline CPTP channel because it yields a clean contraction factor for non-identity Pauli expectations and is implemented in standard simulators \cite{ref8,ref9}. My work adopts this baseline deliberately: the goal is not to claim a full hardware noise model, but to build a transparent ``advanced toy model'' where compounding attenuation with depth can be derived and then stress-tested numerically. Finally, the idea of spending resources to \emph{protect} information draws inspiration from quantum Zeno physics, where frequent interventions can suppress transitions and constrain dynamics \cite{ref17,ref18}. I do not claim a literal Zeno protocol in hardware; instead I use ``Zeno-like'' language as a compact metaphor for error-suppression effort that produces diminishing returns. This resource view is aligned with how near-term experimentation is conducted: depth, width, shots, and mitigation all consume time and operations. As a longer-range motivation, scaling-law methodology in AI \cite{ref10,ref11} and thermodynamic perspectives on information \cite{ref12,ref13,ref14} suggest that a principled accounting of information flow under constraints can unify engineering practice with broader scaling principles.
+
+\section{Problem Setup and Metric}
+I consider balanced labels $\ell\in\{0,1\}$ encoded into $n$-qubit density operators $\rho_\ell^{(0)}$ via a fixed encoding map $\mathrm{Enc}$. A depth-$L$ ansatz $U(\theta)$ (untrained in this study) is applied, and after each layer I insert depolarizing noise $\mathcal{D}_p$. A fixed measurement $M$ produces a classical bitstring outcome $Y$. The induced effective channel is
+\begin{equation}
+\mathcal{E} \;=\; M \circ \bigl(\mathcal{D}_p\circ\mathcal{U}_\theta\bigr)^L \circ \mathrm{Enc}.
+\end{equation}
+The figure of merit is the mutual information
+\begin{equation}
+\MI \;=\; H(Y)-H(Y\mid \ell)
+\;=\; H(\ell)-H(\ell\mid Y),
+\end{equation}
+where entropies are Shannon entropies in bits \cite{ref3}. This metric is deliberately \emph{training independent}. Any classifier $\hat{\ell}=g(Y)$ is a classical post-processing of $Y$, so $I(\ell;\hat{\ell})\le \MI$ by the data processing inequality. Therefore $\MI$ measures what the quantum front-end makes \emph{available} to classical inference.
+
+\section{Theory: Derivation and Physical Picture}
+\subsection{Accessible information and the Holevo bound}
+Because the internal state before measurement is quantum, a natural question is why a classical Shannon metric is appropriate. The answer is that the final interface is classical: the measurement produces $Y$. For an ensemble $\{p_\ell,\rho_\ell\}$ passed through any CPTP map and then measured, the mutual information between $\ell$ and measurement outcomes is bounded by the Holevo quantity \cite{ref2,ref1}:
+\begin{equation}
+\MI \le \chi := S(\bar{\rho})-\sum_\ell p_\ell S(\rho_\ell),\quad \bar{\rho}=\sum_\ell p_\ell \rho_\ell,
+\end{equation}
+where $S(\cdot)$ is the von Neumann entropy. In this work I compute $\MI$ directly from measured distributions $P(Y\mid \ell)$; the bound supplies a principled ceiling for accessible classical label information.
+
+\subsection{From distributions to optimal decision error (TVD) and BSC reduction}
+Given $P(Y\mid \ell=0)$ and $P(Y\mid \ell=1)$, the optimal binary decision rule (MAP under equal priors) selects the label that makes the observed outcome more likely. The best achievable error probability is governed by the total variation distance $\TV$ between the two distributions:
+\begin{lemma}
+For balanced priors, the minimum Bayes error satisfies $e^{\ast}=\tfrac{1}{2}(1-\TV)$, where $\TV=\tfrac{1}{2}\sum_y |P(y\mid 0)-P(y\mid 1)|$.
+\end{lemma}
+In symmetric cases the induced decision channel can be approximated as a binary symmetric channel (BSC) with flipping probability $e^{\ast}$, yielding
+\begin{equation}
+I(\ell;\hat{\ell}) = 1-\Htwo(e^{\ast}),\qquad 
+\Htwo(e)=-e\log_2 e -(1-e)\log_2(1-e),
+\end{equation}
+which provides an interpretable bridge from measurement statistics to decision quality \cite{ref3}. While $\MI$ is the primary metric, this reduction explains how a low-$\MI$ regime limits any classifier.
+
+\subsection{Depolarization in the Pauli-transfer picture and depth compounding}
+For one qubit, depolarizing noise shrinks the Bloch vector by $\eta=1-\tfrac{4p}{3}$. In the Pauli-transfer (Liouville) representation, all non-identity Pauli components are multiplied by $\eta$ per application. In a layered circuit, label-dependent observables that couple to the readout can be written as a sum of Pauli strings; repeated noise exposure multiplies those contributions by powers of $\eta$. A compact toy-model summary for a label-aligned bias $b$ at readout is
+\begin{equation}
+b(L,p)\approx b_0(n,L)\,\eta^{\kappa(n)L},
+\label{eq:bias}
+\end{equation}
+where $b_0(n,L)$ captures mixing/expressivity in the noiseless circuit and $\kappa(n)$ summarizes effective exposure of label-carrying operator weight to noise as width grows. Equation~\eqref{eq:bias} predicts the observed rise--peak--decline: early depth can increase $b_0$, but large $L$ compounds $\eta^{\kappa(n)L}$ and suppresses distinguishability.
+
+\subsection{Scaling ansatz and coefficient interpretation}
+Over the fixed grid (Table~\ref{tab:grid}) I fit the log-linear scaling law
+\begin{equation}
+\log \MI = a_0 + a_1\log n + a_2\log L + a_3\log \eta,
+\label{eq:scaling}
+\end{equation}
+which acts as a compact summary of dominant trends. Coefficients (Table~\ref{tab:coeff}) indicate sublinear gains with width and depth in the untrained setting, and strong sensitivity to $\eta$ (noise).
+
+\subsection{Control resource with diminishing returns}
+To model error suppression or Zeno-like protection \cite{ref17,ref18} as a tunable effort, I introduce a nonnegative control intensity $u$ that reduces the effective depolarizing rate:
+\begin{equation}
+\peff = p e^{-u},\qquad \etaeff = 1-\tfrac{4}{3}\peff.
+\label{eq:control}
+\end{equation}
+The exponential form captures diminishing returns while ensuring $p_{\mathrm{eff}}\ge 0$. Under a resource budget, $n$, $L$, and $u$ compete; this makes the framework actionable for planning: when baseline noise is high, improving $\etaeff$ can preserve more reachable information than scaling $L$.
+
+\begin{table}[t]
+\caption{Simulation grid used throughout: width $n$, depth $L$, and depolarizing rate $p$.}
+\label{tab:grid}
+\centering
+\footnotesize
+\begin{tabular}{llp{0.43\columnwidth}}
+\toprule
+$n$ values & $L$ values & $p$ values\\
+\midrule
+$2,4,6,8$ & $1,2,3,4,6,8,12$ & $0,10^{-3},5\times10^{-3},10^{-2},2\times10^{-2}$\\
+\bottomrule
+\end{tabular}
+\end{table}
+\begin{table}[t]
+\caption{Log-linear scaling fit coefficients for $\log \MI = a_0 + a_1\log n + a_2\log L + a_3\log\eta$.}
+\label{tab:coeff}
+\centering
+\begin{tabular}{lrr}
+\toprule
+Term & Estimate & Std. Err.\\
+\midrule
+Intercept & -1.720 & 0.078\\
+log(n\_qubits) & 0.420 & 0.042\\
+log(depth) & 0.283 & 0.027\\
+log(eta = 1 - 4p/3) & 27.465 & 2.190\\
+\bottomrule
+\end{tabular}
+\end{table}
+\begin{table*}[t]
+\caption{Resource-optimal achievable information with and without control for representative budgets $B$ (full table in supplement). Baseline uses $u=0$; control allocates $u>0$ under a budget constraint.}
+\label{tab:budget}
+\centering
+\scriptsize
+\begin{tabular}{rrrrrr}
+\toprule
+$p$ & $B$ & Baseline $(n,L),\MI$ & Controlled $(n,L,u),\MI$ & Gain (\%) & Cost used\\
+\midrule
+0.001 & 20 & (6,3), 0.666 & (6,3,0.00), 0.666 & 0.0 & 18.0\\
+0.001 & 40 & (8,4), 0.831 & (8,4,0.25), 0.836 & 0.6 & 36.8\\
+0.001 & 80 & (8,8), 0.917 & (8,8,0.25), 0.928 & 1.3 & 73.6\\
+0.001 & 160 & (8,8), 0.917 & (8,10,1.50), 0.967 & 5.5 & 152.0\\
+0.005 & 20 & (6,3), 0.611 & (6,3,0.00), 0.611 & 0.0 & 18.0\\
+0.005 & 40 & (8,4), 0.740 & (8,4,0.25), 0.764 & 3.3 & 36.8\\
+0.005 & 80 & (8,6), 0.757 & (8,6,1.00), 0.868 & 14.7 & 76.8\\
+0.005 & 160 & (8,6), 0.757 & (8,8,2.00), 0.934 & 23.4 & 140.8\\
+0.01 & 20 & (6,3), 0.548 & (8,2,0.25), 0.559 & 2.0 & 18.4\\
+0.01 & 40 & (8,4), 0.640 & (8,3,1.00), 0.710 & 10.9 & 38.4\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\section{Computational Methods}
+All simulations use a fixed encoding, a fixed hardware-efficient ansatz, and a fixed measurement, with noise injected after each layer. For each grid point $(n,L,p)$ I estimate the conditional measurement distributions $P(Y\mid \ell)$ from repeated shots and compute $\MI$ in bits. I use a fixed random seed for any nuisance parameter sampling to ensure deterministic reproduction. The depolarizing channel and noise-model implementation follow standard quantum simulation toolchains \cite{ref8,ref9}. The scaling coefficients in Table~\ref{tab:coeff} are obtained by least-squares fitting of Eq.~\eqref{eq:scaling} to the full grid. The resource-control study evaluates $\MI$ under $\peff$ in Eq.~\eqref{eq:control}. For the baseline budget proxy I use $C_{\mathrm{gate}}(n,L,u)=nL(1+c_u u)$ with $c_u=0.6$ and require $C_{\mathrm{gate}}\le B$. To test sensitivity to how ``resources are counted, I also consider a wall-clock proxy $C_{\mathrm{time}}(n,L,u)=n(L+L_0)(1+c_u u)$ with $L_0=4$, which captures fixed per-shot overhead (state preparation, measurement, reset) in layer-equivalent units. Finally, I test robustness to calibration drift by perturbing each nominal depolarizing rate $p$ by $\pm10\%$ and propagating its effect on $\eta=1-4p/3$ through the fitted exponent in Eq.~\eqref{eq:scaling}.
+
+\par\medskip
+\noindent\textbf{Finite-shot estimation and uncertainty.}
+In the simulator I treat the measurement outcome $Y$ as a classical random variable produced by sampling the noisy circuit. For each label $\ell\in\{0,1\}$ I collect $S$ measurement shots and form empirical counts $\{c_y^{(\ell)}\}$ over outcomes $y$.
+To avoid instabilities from zero counts in the logarithms, I apply a symmetric pseudocount (Laplace smoothing) with $\alpha=1$ and estimate
+\[
+\widehat{P}(y\mid \ell)=\frac{c_y^{(\ell)}+\alpha}{S+\alpha|\mathcal{Y}|},\qquad 
+\widehat{P}(y)=\sum_{\ell}\pi_{\ell}\widehat{P}(y\mid \ell),
+\]
+where $|\mathcal{Y}|$ is the number of observed outcomes and $\pi_{\ell}$ is the label prior (here $\pi_0=\pi_1=\tfrac{1}{2}$).
+I then compute $\MI$ directly from its definition,
+\[
+\widehat{\MI}=\sum_{\ell}\pi_{\ell}\sum_{y\in\mathcal{Y}}
+\widehat{P}(y\mid \ell)\log_2\!\left(\frac{\widehat{P}(y\mid \ell)}{\widehat{P}(y)}\right).
+\]
+Unless otherwise stated I use $S=8192$ shots per label per grid point; this is large enough that the finite-shot scatter is much smaller than the systematic trends with $(n,L,p)$ in Sec.~VI.
+To quantify residual estimator uncertainty, I use a parametric bootstrap: for a given fitted $\widehat{P}(y\mid\ell)$ I resample synthetic shot histograms from the corresponding multinomial model and recompute $\widehat{\MI}$ across bootstrap replicates.
+For the binary-decision reduction (Sec.~IV-B), this procedure reduces to resampling the binomial decision errors $\widehat{e}$, making the resulting confidence curves directly interpretable in terms of shot noise.
+\par\medskip
+
+\section{Results}
+\subsection{Depth scaling and the rise--peak--decline regime}
+Fig.~\ref{fig:depth} verifies the characteristic depth behavior: for small noise, $\MI$ increases with depth and saturates; as noise increases, $\MI$ peaks at an interior depth and then declines. This is consistent with Eq.~\eqref{eq:bias}: early layers increase mixing (raising $b_0$), while later layers compound the attenuation $\eta^{\kappa(n)L}$ and suppress distinguishability. The practical implication is that depth should be chosen with respect to device noise rather than scaled blindly.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig1.png}
+\caption{Mutual information $\MI$ versus depth $L$ for $n=4$ at multiple depolarizing rates $p$.}
+\label{fig:depth}
+\end{figure}
+
+\subsection{Width scaling at fixed depth}
+Fig.~\ref{fig:width} shows $\MI$ versus qubit count at fixed depth $L=4$ for representative noise values. The increase with $n$ is sublinear in this untrained, hardware-efficient ansatz: width expands the state space, but noise and finite readout limit how much additional label information is actually interrogated by the chosen measurement.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig2.png}
+\caption{$\MI$ versus qubit count $n$ at fixed depth $L=4$ for representative $p$.}
+\label{fig:width}
+\end{figure}
+
+\subsection{Scrambling proxy and why it is not a sufficient objective under noise}
+Fig.~\ref{fig:entropy} reports a half-system entropy proxy versus depth. While entropy increases monotonically and saturates, $\MI$ does not: high scrambling does not guarantee label information survives measurement under noise. This supports the use of $\MI$ rather than scrambling alone as a feasibility metric for learning in noisy devices.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig3.png}
+\caption{Half-system entropy proxy versus depth (scrambling proxy) for $n=6$, showing monotone saturation that does not by itself guarantee high $\MI$ under noise.}
+\label{fig:entropy}
+\end{figure}
+
+\subsection{Operating map and best-depth ridge}
+Fig.~\ref{fig:heatmap} visualizes $\MI(L,p)$ at $n=4$ as a heatmap. The bright ridge corresponds to $L^{\ast}(p)$, the depth that maximizes reachable label information for each noise level. This provides a concrete operating chart for experimental planning.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig5.png}
+\caption{Operating map: heatmap of $\MI(L,p)$ at $n=4$. The bright ridge indicates $L^{\ast}(p)$.}
+\label{fig:heatmap}
+\end{figure}
+
+\subsection{Model adequacy and scaling coefficients}
+Fig.~\ref{fig:parity} shows a parity plot comparing predicted and observed $\MI$ under Eq.~\eqref{eq:scaling}. The alignment along the diagonal demonstrates that $(\log n,\log L,\log\eta)$ captures the dominant scaling across the grid. Table~\ref{tab:coeff} quantifies these effects, with a large positive coefficient on $\log\eta$ reflecting strong noise sensitivity.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig4.png}
+\caption{Parity plot for the log-linear scaling model in Eq.~\eqref{eq:scaling}: predicted vs. observed $\MI$.}
+\label{fig:parity}
+\end{figure}
+
+\subsection{Resource control under budgets}
+Fig.~\ref{fig:budget} and Table~\ref{tab:budget} show that allowing a control resource $u$ can increase the best achievable $\MI$ under a fixed budget, with the largest gains at higher baseline noise. This formalizes an experimental design rule: when noise dominates, allocating budget to improve $\etaeff$ can yield larger information gains than allocating the same budget solely to deeper circuits.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig6.png}
+\caption{Resource-optimal achievable $\MI$ under budgets $B$ with and without control, illustrating that control provides larger gains at higher noise.}
+\label{fig:budget}
+\end{figure}
+
+\subsection{Monte Carlo robustness of control gains and scaling sensitivities}
+The budget study in Table~\ref{tab:budget} compares the best achievable $\MI$ under a fixed resource budget $B\propto nL$ with and without control. Because each $\MI$ value is estimated from a finite number of circuit shots, I quantified how sampling noise propagates to the reported gain. For each row of Table~\ref{tab:budget} I map the reported $\MI$ to an equivalent BSC flip probability $e$ via $\MI=1-H_2(e)$, generate $3\times 10^4$ synthetic re-measurements by drawing $\hat e\sim \mathrm{Binomial}(S,e)/S$ with $S=8192$, and convert back to $\hat{\MI}=1-H_2(\hat e)$. Fig.~\ref{fig:mcgain} reports the median and 90\% intervals of the resulting gain distribution. The ordering is stable: for larger $p$ the control knob yields a larger and more statistically separated improvement, while at very small $p$ the gain concentrates near zero as expected.
+Beyond finite-shot variability, I also checked that the fitted scaling sensitivities are not fragile. Using the estimates and standard errors in Table~\ref{tab:coeff}, I draw $2\times10^5$ independent coefficient samples $\hat a_i\sim\mathcal N(a_i,\sigma_i^2)$ and summarize the resulting 95\% intervals in Table~\ref{tab:mccoeff}. The derived depth--noise tradeoff $\gamma=a_2/a_3$ remains positive and tightly concentrated, supporting the use of control as a first-class resource when designing circuits under noise.
+
+\begin{table}[!t]
+\caption{Monte Carlo uncertainty propagation for the scaling sensitivities. I sample the fitted coefficients from independent normal distributions using the estimates and standard errors of Table~\ref{tab:coeff}, and report 95\% intervals. The derived depth--noise tradeoff $\gamma=a_2/a_3$ quantifies how much improvement in $\eta$ is needed to offset an increase in depth at fixed $\MI$.}
+\label{tab:mccoeff}
+\centering
+\begin{tabular}{lrrrr}
+\hline
+Parameter & Estimate & Std.\ Error & 95\% interval & $\Pr(>0)$ \\
+\hline
+$a_0$ (intercept) & -1.720 & 0.078 & [-1.873, -1.567] & 0.000 \\
+$a_1$ on $\log n$ & 0.420 & 0.042 & [0.338, 0.502] & 1.000 \\
+$a_2$ on $\log L$ & 0.283 & 0.027 & [0.230, 0.336] & 1.000 \\
+$a_3$ on $\log \eta$ & 27.465 & 2.190 & [23.161, 31.746] & 1.000 \\
+$\gamma=a_2/a_3$ & 0.0104 & 0.0013 & [0.0080, 0.0131] & 1.000 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig8_mc_gain.png}
+\caption{Monte Carlo finite-shot propagation of the resource-control advantage in Table~\ref{tab:budget}. For each budget point I invert the reported $\MI$ to a BSC error rate and resample $S=8192$ shots to obtain a distribution over gains. Markers show the median gain, and error bars show the 5th--95th percentiles over $3\times 10^4$ trials.}
+\label{fig:mcgain}
+\end{figure}
+
+\subsection{Finite-shot robustness of the mutual-information estimate}
+Because $\MI$ is estimated from finite samples, it is important to confirm that my reported trends are not artifacts of shot noise. Fig.~\ref{fig:shots} summarizes the expected finite-shot uncertainty under the binary-decision reduction in Sec.~IV-B, where $\MI=1-H_2(e^\ast)$ and the optimal decision error $e^\ast$ is estimated from $S$ samples.
+For representative information levels spanning the study (low, mid, and high $\MI$), I resample $\widehat{e}$ from the corresponding binomial model and propagate it through $\MI=1-H_2(\widehat{e})$ to obtain a 95\% interval.
+At the shot count used throughout ($S=8192$), the typical 95\% half-width is on the order of $10^{-2}$ bits, which is small compared to the multi-tenth-bit variations induced by changing depth, width, or noise in Figs.~\ref{fig:depth}--\ref{fig:budget}. 
+This validates that the rise--peak--decline behavior with depth, the sublinear width gains, and the resource-control improvements are dominated by the modeled physics (attenuation and mixing) rather than by sampling variability.
+In practical experiments, this plot also serves as a planning tool: if a target resolution in $\MI$ is required to distinguish two architectural choices, one can read off the corresponding shot count needed to make statistical uncertainty subdominant.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig7.png}
+\caption{Finite-shot uncertainty of the mutual-information estimator under the binary-decision reduction. Curves show the 95\% confidence half-width of $\widehat{\MI}$ versus shots $S$ for representative true information levels (Monte-Carlo/binomial resampling). The shot count used in this study ($S=8192$ per label) lies in a regime where estimator noise is much smaller than the systematic trends across $(n,L,p)$.}
+\label{fig:shots}
+\end{figure}
+
+\subsection{Robustness to calibration drift and budget definitions}
+Two practical concerns when moving from a clean toy model to real hardware are (i) the fact that the noise rate $p$ is itself an estimated calibration parameter that can drift, and (ii) the fact that ``resource budgets'' can be defined in multiple plausible ways (gate-count, wall-clock, or energy proxies). To stress-test the main conclusions, I therefore add two lightweight robustness checks that do not change the core model assumptions but quantify how sensitive the headline trends are to these operational details.
+\textit{Calibration uncertainty.} I model calibration drift by perturbing each nominal depolarizing rate $p$ used in Table~\ref{tab:budget} by $\pm10\%$ (uniform band) and propagating the perturbation through $\eta=1-4p/3$ using the fitted $\log\eta$ exponent in Eq.~\eqref{eq:scaling}. Figure~\ref{fig:pcalib} reports the resulting distribution of control gains. The median gain remains positive across the budget range, and the 5--95\% uncertainty bands are modest compared with the gain itself. This supports the interpretation that the control advantage at higher noise is not an artifact of a perfectly known $p$.
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig9_p_calibration_gain.png}
+\caption{Calibration-uncertainty sensitivity of the control advantage. Each nominal $p$ in Table~\ref{tab:budget} is perturbed by $\pm10\%$ and its effect on $\MI$ is propagated via local $\eta$-scaling using the fitted exponent in Eq.~\eqref{eq:scaling}. Markers denote median gain and error bars denote the 5--95\% interval.}
+\label{fig:pcalib}
+\end{figure}
+\textit{Budget proxy.} The main resource-control study measures budgets using the gate-count proxy $C_{\mathrm{gate}}(n,L,u)=nL(1+c_u u)$. Figure~\ref{fig:budgetproxy} visualizes the predicted $\MI$--budget curves under both proxies, highlighting that overhead changes the optimal $(n,L,u)$ trade-off but does not remove the qualitative advantage of mitigation at high noise. As an alternative, I repeat the budget optimization under a wall-clock proxy $C_{\mathrm{time}}(n,L,u)=n(L+L_0)(1+c_u u)$ with $L_0=4$, which adds a fixed per-shot overhead in layer-equivalent units. Table~\ref{tab:budgetproxy} summarizes the optimal designs at the highest-noise setting ($p=0.02$). While the wall-clock proxy shifts the preferred depth slightly smaller at tight budgets (because overhead makes short circuits relatively more expensive), the qualitative pattern is unchanged: allocating part of the budget to mitigation ($u>0$) yields the largest marginal improvements when noise is high.
+\begin{table*}[!t]
+\caption{Budget-proxy robustness at high noise ($p=0.02$). For each budget $B$, the optimal baseline design ($u=0$) and control design ($u>0$) are reported under the gate-count proxy $C_{\mathrm{gate}}=nL(1+c_u u)$ and a wall-clock proxy $C_{\mathrm{time}}=n(L+L_0)(1+c_u u)$ with $c_u=0.6$ and $L_0=4$. MI values are predicted by the fitted scaling law (Table~\ref{tab:coeff}).}
+\label{tab:budgetproxy}
+\centering
+\begin{tabular}{c|cc|cc}
+\toprule
+$B$ & Baseline (gate) & Control (gate) & Baseline (wall-clock) & Control (wall-clock)\\
+\midrule
+20 & (8,2) , 0.248 & (8,1,2.00) , 0.388 & (2,6) , 0.189 & (2,2,1.00) , 0.222 \\
+40 & (8,5) , 0.322 & (8,2,2.00) , 0.472 & (4,6) , 0.253 & (2,5,2.00) , 0.342 \\
+80 & (8,10) , 0.392 & (8,4,2.00) , 0.575 & (8,6) , 0.339 & (4,5,2.00) , 0.458 \\
+160 & (8,12) , 0.412 & (8,9,2.00) , 0.723 & (8,12) , 0.412 & (6,8,2.00) , 0.620 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figs/fig10_budget_proxy.png}
+\caption{Budget-model sensitivity at high noise ($p=0.02$). Curves show the scaling-law--predicted optimal achievable $\MI$ as a function of budget under the gate-count proxy and the wall-clock proxy. The proxy changes the optimal $(n,L,u)$ tradeoff slightly but preserves the qualitative advantage of spending budget on mitigation at high noise.}
+\label{fig:budgetproxy}
+\end{figure}
+\FloatBarrier
+\section{Discussion}
+This study supports a hardware-aware view of VQNN scaling: depth and width are useful only insofar as they deliver label information to the classical interface. Mutual information provides a training-independent feasibility metric for whether the quantum front-end is worth training, and it exposes the rise--peak--decline behavior that is otherwise obscured by optimizer-dependent performance measures. The log-linear scaling law in Eq.~\eqref{eq:scaling} serves as a compact empirical summary for the studied ansatz and measurement: width and depth contribute sublinearly, whereas noise sensitivity is dominant through $\eta$. 
+
+The control-resource extension is the main ``upgrade'' beyond a passive scaling study. Real platforms often offer knobs that reduce effective error rates at the cost of overhead (additional pulses, checks, verification, or postselection). Modeling that effort as $u$ with diminishing returns makes the trade-off explicit: under a fixed budget, mitigation can be more valuable than circuit scaling when baseline noise is high. This is consistent with the compounded form in Eq.~\eqref{eq:bias}---small improvements in per-layer retention can be magnified across depth.
+
+As an advanced toy model, the framework is intentionally minimal: depolarizing noise and fixed measurement isolate the mechanism and yield clean, reproducible trends. The next step is to replace depolarization by hardware-calibrated noise models and to test whether the operating ridge $L^{\ast}(p)$ and the budget trade-offs persist. The same pipeline applies: estimate $P(Y\mid \ell)$, compute $\MI$, and compare scaling versus control.
+
+\section{Limitations and Future Work}
+This paper is intentionally framed as an \emph{advanced toy model}, so several limitations are design choices rather than oversights. First, I use layer-wise depolarizing noise because it admits a clean contraction factor $\eta=1-\tfrac{4p}{3}$ and makes the compounding mechanism analytically transparent. Real devices exhibit coherent errors, crosstalk, leakage, drift, and measurement imperfections; these can change the effective exposure factor $\kappa(n)$ and may shift the operating ridge $L^{\ast}(p)$. Second, I keep the circuit untrained and the label encoding deliberately simple (a binary rotation on a designated qubit). This isolates architecture/noise effects, but it does not claim end-to-end task optimality on a real dataset. Third, I use a fixed measurement in the computational basis. Since accessible information depends on measurement choice, a learned or hardware-tailored measurement could increase $\MI$ and change the apparent scaling exponents. Finally, the control parameter $u$ is a compact abstraction for mitigation effort; different mitigation families (verification, symmetry checks, dynamical decoupling, post-selection, etc.) will map to different cost models and may not follow the same exponential diminishing-returns curve.
+
+These limitations also define a clear next step. A natural extension is to replace depolarization with a calibrated noise model and to validate the predicted ridge $L^{\ast}(p)$ on hardware. Another extension is to repeat the analysis \emph{with training} to quantify how much of the reachable information is actually exploited by an optimizer under noise-induced barren plateaus, and whether control resources improve trainability in addition to improving $\MI$. Finally, the resource framework can be broadened to include shots as an explicit decision variable (beyond the uncertainty quantification in Fig.~\ref{fig:shots}), to propagate estimator uncertainty into error bars for $\MI$, and to compare multiple ansatz families and measurements under the same budget.
+
+\subsection{Practical Implications for Practitioners}
+Although this manuscript is intentionally a toy-model study, it yields immediately actionable guidance for practitioners who must make design decisions under real device constraints. First, the operating ridge $L^{\ast}(p)$ in the $(L,p)$ map provides a \emph{hardware-aware depth rule}: for a given measured (or calibrated) noise level, increasing depth beyond the ridge is expected to reduce reachable label information faster than it increases useful mixing. In practice, this suggests a simple workflow: (i) estimate an effective depolarizing rate (or a conservative upper bound) from calibration data; (ii) choose the ansatz depth near the pre-peak region; and (iii) allocate remaining budget to either additional qubits or mitigation depending on whether the experiment is noise- or expressivity-limited. Second, the scaling ansatz in $(\log n,\log L,\log\eta)$ provides a compact summary that can be used as a \emph{planning surrogate} when exhaustive sweeps are infeasible: it predicts relative trends across a grid and supports quick ``what-if'' comparisons of design changes. Third, the control-resource model makes mitigation a first-class variable rather than an afterthought. Under higher noise, improving $\eta_{\mathrm{eff}}(u)$ can dominate naive circuit scaling, implying that time spent on calibration, verification, or pulse-level protection can yield a larger end-to-end information gain than simply adding layers. Finally, by using $\MI$ instead of a task-specific accuracy metric, the conclusions are transferable across downstream learners: once the quantum front-end fails to deliver label-relevant information to measurement, no classical model can recover it, whereas if $\MI$ remains substantial, practitioners can experiment with training strategies while retaining a meaningful information budget at the interface.
+
+\section{Conclusion}
+I present a reproducible, engineering-oriented toy-model analysis of VQNN scaling that treats the noisy quantum front-end as an information channel from labels to measurement outcomes. Using mutual information $\MI$ as a training-independent metric, I map how width, depth, and depolarizing noise shape the reachable label information, identify an operating ridge $L^{\ast}(p)$, and validate a compact log-linear scaling law in $(\log n,\log L,\log\eta)$. I then introduce a control resource $u$ that reduces the effective noise with diminishing returns and show that resource allocation toward control can preserve substantially more reachable information than naive circuit scaling under higher noise. These results provide practical design rules for hybrid quantum--classical learning systems: choose depth based on device noise, use scrambling proxies cautiously, and treat mitigation as a first-class resource in scaling plans.
+
+\section*{Data and Code Availability}
+All numerical parameters used in the experiments (Table~\ref{tab:grid}), fitted coefficients (Table~\ref{tab:coeff}), budget-study outputs (Table~\ref{tab:budget}), robustness summaries (Tables~\ref{tab:mccoeff}--\ref{tab:budgetproxy} and Figs.~\ref{fig:mcgain}--\ref{fig:budgetproxy}), and all figure files used in this manuscript are included in the supplementary submission package. To make the uncertainty analyses executable, the package includes fixed-seed Python scripts that reproduce the robustness post-processing outputs and regenerate Figs.~\ref{fig:mcgain}--\ref{fig:budgetproxy} and Tables~\ref{tab:mccoeff}--\ref{tab:budgetproxy} from the provided CSV outputs.
+
+To support long-term access, I will release a public, version-controlled repository that hosts the source code, figure-generation pipeline, and exact configuration files, and I will archive a DOI-tagged snapshot on Zenodo.
+
+During peer review, the supplementary package attached to the submission provides a complete offline copy of the code, data, configuration files, and deterministic re-run script (fixed random seeds), so that all figures and tables in this manuscript can be regenerated without relying on external links.
+\section*{Acknowledgment}
+I prepared the experiments and verified the modeling assumptions and numerical outputs. I used an AI language model for language polishing and \LaTeX{} formatting assistance; all scientific choices, equations, and interpretations were made by me.
+
+\FloatBarrier
+\begin{thebibliography}{00}
+\bibitem{ref1} Nielsen MA, Chuang IL. Quantum Computation and Quantum Information. Cambridge University Press; 2010. https://doi.org/10.1017/CBO9780511976667
+\bibitem{ref2} Holevo AS. Bounds for the quantity of information transmitted by a quantum communication channel. Problems of Information Transmission. 1973;9:177--183. https://doi.org/10.1007/BF01028244
+\bibitem{ref3} Cover TM, Thomas JA. Elements of Information Theory. 2nd ed. Wiley; 2006. https://onlinelibrary.wiley.com/doi/book/10.1002/047174882X
+\bibitem{ref4} McClean JR, Boixo S, Smelyanskiy VN, Babbush R, Neven H. Barren plateaus in quantum neural network training landscapes. Nature Communications. 2018;9:4812. https://doi.org/10.1038/s41467-018-07090-4
+\bibitem{ref5} Cerezo M, Sone A, Volkoff T, Cincio L, Coles PJ. Cost function-dependent barren plateaus in shallow parametrized quantum circuits. Nature Communications. 2021;12:1791. https://doi.org/10.1038/s41467-021-21728-w
+\bibitem{ref6} Wang S, Fontana E, Cerezo M, Sharma K, Sone A, Cincio L, Coles PJ. Noise-induced barren plateaus in variational quantum algorithms. Nature Communications. 2021;12:6961. https://doi.org/10.1038/s41467-021-27045-6
+\bibitem{ref7} Sim S, Johnson PD, Aspuru-Guzik A. Expressibility and entangling capability of parameterized quantum circuits for hybrid quantum--classical algorithms. Advanced Quantum Technologies. 2019;2:1900070. https://doi.org/10.1002/qute.201900070 (also arXiv:1905.10876).
+\bibitem{ref8} Qiskit Aer documentation (Noise models and depolarizing\_error). Qiskit Development Team; accessed 2026-01-14. https://qiskit.github.io/qiskit-aer/apidocs/aer\_noise.html; https://qiskit.github.io/qiskit-aer/stubs/qiskit\_aer.noise.depolarizing\_error.html
+\bibitem{ref9} IBM Quantum documentation. Building noise models with Qiskit Aer. IBM Quantum; accessed 2026-01-14. https://quantum.cloud.ibm.com/docs/guides/build-noise-models
+\bibitem{ref10} Kaplan J, McCandlish S, Henighan T, et al. Scaling laws for neural language models. arXiv:2001.08361; 2020. https://arxiv.org/abs/2001.08361
+\bibitem{ref11} Hoffmann J, Borgeaud S, Mensch A, et al. Training compute-optimal large language models. arXiv:2203.15556; 2022. https://arxiv.org/abs/2203.15556
+\bibitem{ref12} Parrondo JMR, Horowitz JM, Sagawa T. Thermodynamics of information. Nature Physics. 2015;11:131--139. https://doi.org/10.1038/nphys3230
+\bibitem{ref13} Sagawa T, Ueda M. Generalized second law of thermodynamics for nonequilibrium quantum feedback control. Physical Review Letters. 2010;104:090602. https://doi.org/10.1103/PhysRevLett.104.090602
+\bibitem{ref14} Landauer R. Irreversibility and heat generation in the computing process. IBM Journal of Research and Development. 1961;5:183--191. https://doi.org/10.1147/rd.53.0183
+\bibitem{ref15} Schuld M, Bergholm V, Gogolin C, Izaac J, Killoran N. Evaluating analytic gradients on quantum hardware. Physical Review A. 2019;99:032331. https://doi.org/10.1103/PhysRevA.99.032331 (arXiv:1811.11184).
+\bibitem{ref16} Mitarai K, Negoro M, Kitagawa M, Fujii K. Quantum circuit learning. Physical Review A. 2018;98:032309. https://doi.org/10.1103/PhysRevA.98.032309 (arXiv:1803.00745).
+\bibitem{ref17} Misra B, Sudarshan ECG. The Zeno’s paradox in quantum theory. Journal of Mathematical Physics. 1977;18(4):756--763. https://doi.org/10.1063/1.523304
+\bibitem{ref18} Facchi P, Pascazio S. Quantum Zeno dynamics: mathematical and physical aspects. Journal of Physics A: Mathematical and Theoretical. 2008;41(49):493001. https://doi.org/10.1088/1751-8113/41/49/493001
+\end{thebibliography}
+
+\end{document}
