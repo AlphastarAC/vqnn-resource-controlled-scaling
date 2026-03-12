@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this software/artifact package, please cite it as below."
+title: "Resource-Controlled Scaling Laws for Noisy Variational Quantum Neural Networks: Reproducibility Artifacts"
+authors:
+  - family-names: Jung
+    given-names: Hongmin
+version: 1.0.0
+date-released: 2026-02-21
+url: "https://github.com/AlphastarAC/vqnn-resource-controlled-scaling"

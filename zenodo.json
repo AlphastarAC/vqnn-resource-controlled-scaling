@@ -1,0 +1,40 @@
+{
+  "title": "Resource-Controlled Scaling Laws for Noisy Variational Quantum Neural Networks (VQNNs): Reproducibility Artifacts",
+  "upload_type": "software",
+  "description": "Submission package and reproducibility artifacts for an IEEE Access manuscript on information-theoretic scaling laws for noisy VQNNs with a control-resource model. Includes final manuscript (PDF/LaTeX/Word), publication-ready figures, and CSV tables for parameter grid, fitted coefficients, and budget/control analysis. This release adds calibration-uncertainty (p±10%) sensitivity and an alternative wall-clock budget proxy robustness check.",
+  "creators": [
+    {
+      "name": "Jung, Hongmin",
+      "affiliation": "Laurel Springs School, Ojai, CA, USA",
+      "orcid": "0009-0002-0596-3933"
+    }
+  ],
+  "access_right": "open",
+  "license": "MIT",
+  "keywords": [
+    "variational quantum neural networks",
+    "parameterized quantum circuits",
+    "mutual information",
+    "Holevo bound",
+    "depolarizing noise",
+    "scaling laws",
+    "error mitigation",
+    "resource allocation",
+    "hybrid quantum-classical"
+  ],
+  "version": "v3.8",
+  "language": "eng",
+  "related_identifiers": [
+    {
+      "relation": "isSupplementTo",
+      "identifier": "https://doi.org/10.1109/ACCESS.<TO-BE-ASSIGNED>",
+      "scheme": "doi"
+    },
+    {
+      "relation": "isIdenticalTo",
+      "identifier": "https://github.com/AlphastarAC/vqnn-resource-controlled-scaling",
+      "scheme": "url"
+    }
+  ],
+  "notes": "After acceptance, replace placeholders with the final GitHub URL, Zenodo record ID, affiliation, and the IEEE Access DOI assigned to the article."
+}
