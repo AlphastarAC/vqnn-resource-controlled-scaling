@@ -1,0 +1,5 @@
+Parameter,Estimate,Std. Error
+Intercept,-1.720,0.078
+log(n_qubits),0.420,0.042
+log(depth),0.283,0.027
+log(eta = 1 - 4p/3),27.465,2.190
